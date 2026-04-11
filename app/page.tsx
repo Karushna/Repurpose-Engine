@@ -1,248 +1,196 @@
-"use client";
+import Link from "next/link";
 
-import { useEffect, useState } from "react";
-import ContentInput from "@/components/ContentInput";
-import GenerateButton from "@/components/GenerateButton";
-import OutputCard from "@/components/OutputCard";
-import OutputEditor from "@/components/OutputEditor";
-import ChannelSelector from "@/components/ChannelSelector";
-import PublishPanel from "@/components/PublishPanel";
-import type { GenerateResponse, GeneratedPosts } from "@/lib/types";
-
-type BufferChannel = {
-  id: string;
-  name: string;
-  displayName?: string | null;
-  service: string;
-};
-
-const starterText = `We launched a new AI tool for startup founders that turns long-form updates into social media content. It helps founders repurpose launch notes, blog posts, webinars, and internal updates into LinkedIn posts, X posts, and Instagram captions. The goal is to save time, stay consistent, and publish across channels without hiring a full content team.`;
-
-export default function HomePage() {
-  const [content, setContent] = useState(starterText);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [outputs, setOutputs] = useState<GeneratedPosts | null>(null);
-
-  const [channels, setChannels] = useState<BufferChannel[]>([]);
-  const [selectedChannelId, setSelectedChannelId] = useState("");
-  const [channelsError, setChannelsError] = useState("");
-
-  const [publishMode, setPublishMode] = useState<"queue" | "schedule">("queue");
-  const [scheduledAt, setScheduledAt] = useState("");
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [publishMessage, setPublishMessage] = useState("");
-  const [selectedPlatform, setSelectedPlatform] = useState<
-    "linkedin" | "xPost" | "instagram"
-  >("linkedin");
-
-  useEffect(() => {
-    async function loadChannels() {
-      try {
-        const res = await fetch("/api/buffer/channels");
-        const data = await res.json();
-
-        if (!data.success) {
-          setChannelsError(data.error || "Failed to load Buffer channels");
-          return;
-        }
-
-        setChannels(data.data.channels);
-      } catch (err) {
-        console.error(err);
-        setChannelsError("Failed to load Buffer channels");
-      }
-    }
-
-    loadChannels();
-  }, []);
-
-  async function handleGenerate() {
-    setIsLoading(true);
-    setError("");
-    setPublishMessage("");
-
-    try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ content }),
-      });
-
-      const data: GenerateResponse = await res.json();
-
-      if (!data.success) {
-        setOutputs(null);
-        setError(data.error);
-        return;
-      }
-
-      setOutputs(data.data);
-    } catch (err) {
-      console.error(err);
-      setOutputs(null);
-      setError("Something went wrong while generating posts.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function handlePublish() {
-    if (!outputs) return;
-
-    const text = outputs[selectedPlatform];
-
-    setIsPublishing(true);
-    setPublishMessage("");
-
-    try {
-      const res = await fetch("/api/publish", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          channelId: selectedChannelId,
-          text,
-          publishMode,
-          scheduledAt: publishMode === "schedule" ? scheduledAt : undefined,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!data.success) {
-        setPublishMessage(data.error || "Failed to publish");
-        return;
-      }
-
-      setPublishMessage("Post sent to Buffer successfully.");
-    } catch (err) {
-      console.error(err);
-      setPublishMessage("Failed to publish post.");
-    } finally {
-      setIsPublishing(false);
-    }
-  }
-
-  function updateLinkedIn(value: string) {
-    setOutputs((prev) => (prev ? { ...prev, linkedin: value } : prev));
-  }
-
-  function updateXPost(value: string) {
-    setOutputs((prev) => (prev ? { ...prev, xPost: value } : prev));
-  }
-
-  function updateInstagram(value: string) {
-    setOutputs((prev) => (prev ? { ...prev, instagram: value } : prev));
-  }
-
+export default function LandingPage() {
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
-      <div className="mb-8 space-y-2">
-        <h1 className="text-3xl font-bold">Repurposing Engine</h1>
-        <p className="text-sm text-gray-600">
-          Generate and publish LinkedIn, X, and Instagram posts through Buffer.
-        </p>
-      </div>
+    <main className="min-h-screen bg-white text-gray-900">
+      <section className="border-b">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+          <Link href="/" className="text-lg font-semibold">
+            Repurposing Engine
+          </Link>
 
-      <div className="space-y-6">
-        <ContentInput value={content} onChange={setContent} />
+          <Link
+            href="/app"
+            className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
+          >
+            Try it
+          </Link>
+        </div>
+      </section>
 
-        <GenerateButton
-          isLoading={isLoading}
-          onClick={handleGenerate}
-          disabled={content.trim().length < 50}
-        />
+      <section className="mx-auto max-w-6xl px-6 py-20">
+        <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+          <div className="space-y-6">
+            <span className="inline-block rounded-full border px-3 py-1 text-sm text-gray-600">
+              Repurpose once. Publish everywhere.
+            </span>
 
-        {error && (
-          <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+            <h1 className="text-4xl font-bold leading-tight md:text-5xl">
+              Turn one piece of content into ready-to-publish social posts.
+            </h1>
 
-        {channelsError && (
-          <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-700">
-            {channelsError}
-          </div>
-        )}
+            <p className="max-w-xl text-lg text-gray-600">
+              Paste a blog post, launch update, long-form note, or article
+              content. Generate LinkedIn, X, and Instagram posts in seconds,
+              then schedule them with Buffer.
+            </p>
 
-        {!!channels.length && (
-          <ChannelSelector
-            channels={channels}
-            value={selectedChannelId}
-            onChange={setSelectedChannelId}
-          />
-        )}
-
-        {outputs && (
-          <>
-            <div className="rounded-2xl border p-4">
-              <label className="mb-2 block text-sm font-medium">
-                Which generated post do you want to publish?
-              </label>
-              <select
-                value={selectedPlatform}
-                onChange={(e) =>
-                  setSelectedPlatform(
-                    e.target.value as "linkedin" | "xPost" | "instagram"
-                  )
-                }
-                className="w-full rounded-xl border p-3 outline-none"
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/app"
+                className="rounded-xl bg-black px-5 py-3 font-medium text-white"
               >
-                <option value="linkedin">LinkedIn</option>
-                <option value="xPost">X</option>
-                <option value="instagram">Instagram</option>
-              </select>
+                Try it
+              </Link>
+
+              <a
+                href="#how-it-works"
+                className="rounded-xl border px-5 py-3 font-medium"
+              >
+                How it works
+              </a>
             </div>
 
-            <div className="grid gap-6">
-              <OutputCard title="LinkedIn">
-                <OutputEditor
-                  label="LinkedIn Post"
-                  value={outputs.linkedin}
-                  onChange={updateLinkedIn}
-                />
-              </OutputCard>
-
-              <OutputCard title="X">
-                <OutputEditor
-                  label="X Post"
-                  value={outputs.xPost}
-                  onChange={updateXPost}
-                />
-              </OutputCard>
-
-              <OutputCard title="Instagram">
-                <OutputEditor
-                  label="Instagram Caption"
-                  value={outputs.instagram}
-                  onChange={updateInstagram}
-                />
-              </OutputCard>
-            </div>
-
-            <PublishPanel
-              selectedChannelId={selectedChannelId}
-              publishMode={publishMode}
-              scheduledAt={scheduledAt}
-              onPublishModeChange={setPublishMode}
-              onScheduledAtChange={setScheduledAt}
-              onPublish={handlePublish}
-              isPublishing={isPublishing}
-              disabled={!selectedChannelId}
-            />
-
-            {publishMessage && (
-              <div className="rounded-xl border p-3 text-sm">
-                {publishMessage}
+            <div className="grid gap-4 pt-4 sm:grid-cols-3">
+              <div className="rounded-2xl border p-4">
+                <p className="text-sm font-medium">Input</p>
+                <p className="mt-2 text-sm text-gray-600">
+                  Blog posts, launch notes, long-form content
+                </p>
               </div>
-            )}
-          </>
-        )}
-      </div>
+
+              <div className="rounded-2xl border p-4">
+                <p className="text-sm font-medium">Output</p>
+                <p className="mt-2 text-sm text-gray-600">
+                  LinkedIn, X, and Instagram variants
+                </p>
+              </div>
+
+              <div className="rounded-2xl border p-4">
+                <p className="text-sm font-medium">Publishing</p>
+                <p className="mt-2 text-sm text-gray-600">
+                  Add to Buffer queue or schedule later
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border bg-gray-50 p-6 shadow-sm">
+            <div className="space-y-4">
+              <div className="rounded-2xl border bg-white p-4">
+                <p className="mb-2 text-sm font-medium text-gray-500">
+                  Source content
+                </p>
+                <p className="text-sm text-gray-700">
+                  We launched a new AI tool for startup founders that turns
+                  long-form updates into social media content...
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border bg-white p-4">
+                  <p className="mb-2 text-sm font-semibold">LinkedIn</p>
+                  <p className="text-sm text-gray-600">
+                    Professional post generated from your source content.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border bg-white p-4">
+                  <p className="mb-2 text-sm font-semibold">X</p>
+                  <p className="text-sm text-gray-600">
+                    Short, punchy post tailored for fast engagement.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border bg-white p-4">
+                  <p className="mb-2 text-sm font-semibold">Instagram</p>
+                  <p className="text-sm text-gray-600">
+                    Caption-style version ready for publishing.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border bg-white p-4">
+                <p className="text-sm font-medium text-gray-500">
+                  Publish with Buffer
+                </p>
+                <p className="mt-2 text-sm text-gray-700">
+                  Choose a channel, add to queue, or schedule for later.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="how-it-works" className="border-t bg-gray-50">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <div className="mb-10 max-w-2xl space-y-3">
+            <h2 className="text-3xl font-bold">How it works</h2>
+            <p className="text-gray-600">
+              A simple workflow for turning long-form content into social posts.
+            </p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-3">
+            <div className="rounded-2xl border bg-white p-6">
+              <p className="mb-3 text-sm font-semibold text-gray-500">
+                Step 1
+              </p>
+              <h3 className="text-lg font-semibold">Paste your content</h3>
+              <p className="mt-2 text-sm text-gray-600">
+                Add your blog post, launch note, article text, or any long-form
+                source content.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border bg-white p-6">
+              <p className="mb-3 text-sm font-semibold text-gray-500">
+                Step 2
+              </p>
+              <h3 className="text-lg font-semibold">Generate platform posts</h3>
+              <p className="mt-2 text-sm text-gray-600">
+                Create tailored LinkedIn, X, and Instagram versions instantly.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border bg-white p-6">
+              <p className="mb-3 text-sm font-semibold text-gray-500">
+                Step 3
+              </p>
+              <h3 className="text-lg font-semibold">Queue or schedule</h3>
+              <p className="mt-2 text-sm text-gray-600">
+                Review the content, choose your Buffer channel, and publish it
+                the way you want.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t">
+        <div className="mx-auto max-w-6xl px-6 py-16">
+          <div className="rounded-3xl border bg-black px-8 py-10 text-white">
+            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold">
+                  Start repurposing your content
+                </h2>
+                <p className="text-sm text-gray-300">
+                  Generate content variations in seconds and publish with Buffer.
+                </p>
+              </div>
+
+              <Link
+                href="/app"
+                className="inline-flex rounded-xl bg-white px-5 py-3 font-medium text-black"
+              >
+                Try it now
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
