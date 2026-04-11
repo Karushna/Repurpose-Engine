@@ -17,10 +17,8 @@ type BufferChannel = {
   service: string;
 };
 
-const starterText = `We launched a new AI tool for startup founders that turns long-form updates into social media content. It helps founders repurpose launch notes, blog posts, webinars, and internal updates into LinkedIn posts, X posts, and Instagram captions. The goal is to save time, stay consistent, and publish across channels without hiring a full content team.`;
-
 export default function AppPage() {
-  const [content, setContent] = useState(starterText);
+  const [content, setContent] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [outputs, setOutputs] = useState<GeneratedPosts | null>(null);
@@ -185,9 +183,9 @@ export default function AppPage() {
           </span>
           <h1 className="text-3xl font-bold">Repurpose your content</h1>
           <p className="max-w-2xl text-gray-600">
-            Give your source content, blog text, product update, or article
-            copy. We’ll generate LinkedIn, X, and Instagram versions that you
-            can edit and publish through Buffer.
+            Paste your idea, blog post, article text, product launch update, or
+            even a URL. We’ll generate LinkedIn, X, and Instagram versions that
+            you can edit and publish through Buffer.
           </p>
         </div>
 
@@ -196,8 +194,8 @@ export default function AppPage() {
             <div className="mb-4 space-y-1">
               <h2 className="text-xl font-semibold">1. Give your source content</h2>
               <p className="text-sm text-gray-600">
-                Paste long-form content, launch notes, article copy, or blog
-                text below.
+                Paste an idea, blog post, long-form note, article text, or URL
+                below.
               </p>
             </div>
 
@@ -211,7 +209,8 @@ export default function AppPage() {
                   disabled={content.trim().length < 50}
                 />
                 <p className="text-sm text-gray-500">
-                  URL input can be added next. For now, paste the source text.
+                  Start by typing or pasting your content. URL processing can be
+                  added next.
                 </p>
               </div>
 
