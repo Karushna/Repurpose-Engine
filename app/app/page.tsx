@@ -79,6 +79,19 @@ export default function AppPage() {
       }
 
       setOutputs(data.data);
+
+      await fetch("/api/projects/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sourceContent: content,
+          linkedin: data.data.linkedin,
+          xPost: data.data.xPost,
+          instagram: data.data.instagram,
+        }),
+      });
     } catch (err) {
       console.error(err);
       setOutputs(null);

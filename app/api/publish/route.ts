@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createBufferPost } from "@/lib/buffer";
+import { db } from "@/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 const requestSchema = z
   .object({
@@ -71,12 +73,35 @@ export async function POST(req: NextRequest) {
       dueAt,
     });
 
+    await db.collection("publishLogs").add({
+      channelId,
+      text,
+      publishMode,
+      dueAt: dueAt ?? null,
+      bufferPostId: post.id,
+      bufferChannelId: post.channelId,
+      bufferPostText: post.text,
+      bufferDueAt: post.dueAt ?? null,
+      status: "success",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
     return NextResponse.json({
       success: true,
       data: post,
     });
   } catch (error) {
     console.error("Publish route error:", error);
+
+    try {
+      await db.collection("publishLogs").add({
+        status: "failed",
+        error: error instanceof Error ? error.message : "Failed to publish post",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (logError) {
+      console.error("Failed to write publish log:", logError);
+    }
 
     return NextResponse.json(
       {
