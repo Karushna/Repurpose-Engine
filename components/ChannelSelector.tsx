@@ -1,6 +1,7 @@
 type Channel = {
   id: string;
   name: string;
+  displayName?: string | null;
   service: string;
 };
 
@@ -22,7 +23,7 @@ export default function ChannelSelector({ channels, value, onChange }: Props) {
         <option value="">Select a channel</option>
         {channels.map((channel) => (
           <option key={channel.id} value={channel.id}>
-            {channel.name} ({channel.service})
+            {channel.displayName || channel.name} ({channel.service})
           </option>
         ))}
       </select>

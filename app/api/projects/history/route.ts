@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase-admin";
+import { getDb } from "@/lib/firebase-admin";
 
 export async function GET() {
   try {
-    const snapshot = await db
+    const snapshot = await getDb()
       .collection("projects")
       .orderBy("createdAt", "desc")
       .limit(20)

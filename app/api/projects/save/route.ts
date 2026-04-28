@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@/lib/firebase-admin";
+import { getDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
 const requestSchema = z.object({
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const docRef = await db.collection("projects").add({
+    const docRef = await getDb().collection("projects").add({
       sourceContent: parsed.data.sourceContent,
       outputs: {
         linkedin: parsed.data.linkedin,

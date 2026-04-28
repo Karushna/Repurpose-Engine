@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createBufferPost } from "@/lib/buffer";
-import { db } from "@/lib/firebase-admin";
+import { createBufferPost, getAllChannelsForUser } from "@/lib/buffer";
+import { getCurrentUserId } from "@/lib/auth";
+import { getDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
 const requestSchema = z
@@ -35,6 +36,15 @@ const requestSchema = z
 
 export async function POST(req: NextRequest) {
   try {
+    const userId = getCurrentUserId(req);
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: "You must be logged in to publish" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const parsed = requestSchema.safeParse(body);
 
@@ -58,23 +68,31 @@ export async function POST(req: NextRequest) {
         ? new Date(scheduledAt!).toISOString()
         : undefined;
 
-    console.log("PUBLISH REQUEST:", {
-      channelId,
-      text,
-      publishMode,
-      mode,
-      dueAt,
-    });
+    const { channels } = await getAllChannelsForUser(userId);
+    const channel = channels.find((item) => item.id === channelId);
+
+    if (!channel) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Selected Buffer channel is not available for this user",
+        },
+        { status: 403 }
+      );
+    }
 
     const post = await createBufferPost({
+      userId,
       channelId,
       text,
       mode,
       dueAt,
     });
 
-    await db.collection("publishLogs").add({
+    await getDb().collection("publishLogs").add({
+      userId,
       channelId,
+      organizationId: channel.organizationId,
       text,
       publishMode,
       dueAt: dueAt ?? null,
@@ -94,7 +112,9 @@ export async function POST(req: NextRequest) {
     console.error("Publish route error:", error);
 
     try {
-      await db.collection("publishLogs").add({
+      const userId = getCurrentUserId(req);
+      await getDb().collection("publishLogs").add({
+        userId: userId ?? null,
         status: "failed",
         error: error instanceof Error ? error.message : "Failed to publish post",
         createdAt: FieldValue.serverTimestamp(),

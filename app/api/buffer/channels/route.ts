@@ -1,24 +1,38 @@
-import { NextResponse } from "next/server";
-import { getOrganizations, getChannels } from "@/lib/buffer";
+import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUserId } from "@/lib/auth";
+import { getAllChannelsForUser, getBufferConnection } from "@/lib/buffer";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const organizations = await getOrganizations();
+    const userId = getCurrentUserId(req);
 
-    if (!organizations.length) {
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: "No Buffer organizations found" },
-        { status: 404 }
+        { success: false, connected: false, error: "You must be logged in" },
+        { status: 401 }
       );
     }
 
-    const organizationId = organizations[0].id;
-    const channels = await getChannels(organizationId);
+    const connection = await getBufferConnection(userId);
+
+    if (!connection) {
+      return NextResponse.json({
+        success: true,
+        connected: false,
+        data: {
+          organizations: [],
+          channels: [],
+        },
+      });
+    }
+
+    const { organizations, channels } = await getAllChannelsForUser(userId);
 
     return NextResponse.json({
       success: true,
+      connected: true,
       data: {
-        organizationId,
+        organizations,
         channels,
       },
     });
@@ -28,7 +42,11 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to fetch Buffer channels",
+        connected: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch Buffer channels",
       },
       { status: 500 }
     );

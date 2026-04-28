@@ -15,6 +15,7 @@ type BufferChannel = {
   name: string;
   displayName?: string | null;
   service: string;
+  organizationId: string;
 };
 
 export default function AppPage() {
@@ -26,6 +27,9 @@ export default function AppPage() {
   const [channels, setChannels] = useState<BufferChannel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState("");
   const [channelsError, setChannelsError] = useState("");
+  const [isBufferConnected, setIsBufferConnected] = useState(false);
+  const [isLoadingChannels, setIsLoadingChannels] = useState(true);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   const [publishMode, setPublishMode] = useState<"queue" | "schedule">("queue");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -35,26 +39,80 @@ export default function AppPage() {
     "linkedin" | "xPost" | "instagram"
   >("linkedin");
 
-  useEffect(() => {
-    async function loadChannels() {
-      try {
-        const res = await fetch("/api/buffer/channels");
-        const data = await res.json();
+  async function loadChannels() {
+    setIsLoadingChannels(true);
+    setChannelsError("");
 
-        if (!data.success) {
-          setChannelsError(data.error || "Failed to load Buffer channels");
-          return;
-        }
+    try {
+      const res = await fetch("/api/buffer/channels");
+      const data = await res.json();
 
-        setChannels(data.data.channels);
-      } catch (err) {
-        console.error(err);
-        setChannelsError("Failed to load Buffer channels");
+      if (!data.success) {
+        setIsBufferConnected(false);
+        setChannels([]);
+        setChannelsError(data.error || "Failed to load Buffer channels");
+        return;
       }
+
+      setIsBufferConnected(Boolean(data.connected));
+      setChannels(data.data.channels);
+
+      if (!data.connected) {
+        setSelectedChannelId("");
+      }
+    } catch (err) {
+      console.error(err);
+      setIsBufferConnected(false);
+      setChannels([]);
+      setChannelsError("Failed to load Buffer channels");
+    } finally {
+      setIsLoadingChannels(false);
+    }
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const bufferStatus = params.get("buffer");
+    const message = params.get("message");
+
+    if (bufferStatus === "connected") {
+      setPublishMessage("Buffer connected successfully.");
+    }
+
+    if (bufferStatus === "error") {
+      setPublishMessage(message || "Failed to connect Buffer.");
     }
 
     loadChannels();
   }, []);
+
+  async function handleDisconnectBuffer() {
+    setIsDisconnecting(true);
+    setChannelsError("");
+    setPublishMessage("");
+
+    try {
+      const res = await fetch("/api/buffer/disconnect", {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        setChannelsError(data.error || "Failed to disconnect Buffer");
+        return;
+      }
+
+      setIsBufferConnected(false);
+      setChannels([]);
+      setSelectedChannelId("");
+      setPublishMessage("Buffer disconnected.");
+    } catch (err) {
+      console.error(err);
+      setChannelsError("Failed to disconnect Buffer");
+    } finally {
+      setIsDisconnecting(false);
+    }
+  }
 
   async function handleGenerate() {
     setIsLoading(true);
@@ -296,16 +354,49 @@ export default function AppPage() {
           <section className="rounded-3xl border bg-white p-6 shadow-sm">
             <div className="mb-4 space-y-1">
               <h2 className="text-xl font-semibold">
-                3. Choose Buffer channel and publish mode
+                3. Connect Buffer and publish
               </h2>
               <p className="text-sm text-gray-600">
-                Connect your generated content to a Buffer channel and either
-                add it to the queue or schedule it.
+                Connect your Buffer account, choose one of your channels, and
+                either add the post to the queue or schedule it.
               </p>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="space-y-4">
+                <div className="rounded-2xl border p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="font-semibold">Buffer connection</h3>
+                      <p className="text-sm text-gray-600">
+                        {isLoadingChannels
+                          ? "Checking connection..."
+                          : isBufferConnected
+                            ? "Connected. Your Buffer channels are available below."
+                            : "Not connected. Connect Buffer to load your channels."}
+                      </p>
+                    </div>
+
+                    {isBufferConnected ? (
+                      <button
+                        type="button"
+                        onClick={handleDisconnectBuffer}
+                        disabled={isDisconnecting}
+                        className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50"
+                      >
+                        {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+                      </button>
+                    ) : (
+                      <a
+                        href="/api/buffer/connect"
+                        className="rounded-lg bg-black px-4 py-2 text-center text-sm font-medium text-white"
+                      >
+                        Connect Buffer
+                      </a>
+                    )}
+                  </div>
+                </div>
+
                 {channelsError && (
                   <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-700">
                     {channelsError}
@@ -322,7 +413,11 @@ export default function AppPage() {
 
                 {!channels.length && !channelsError && (
                   <div className="rounded-xl border p-3 text-sm text-gray-600">
-                    Loading Buffer channels...
+                    {isLoadingChannels
+                      ? "Loading Buffer channels..."
+                      : isBufferConnected
+                        ? "No Buffer channels found."
+                        : "Connect Buffer to choose channels."}
                   </div>
                 )}
               </div>
