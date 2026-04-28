@@ -20,11 +20,20 @@ function base64Url(bytes: Buffer) {
 function cookieOptions(req: NextRequest) {
   return {
     httpOnly: true,
-    secure: req.nextUrl.protocol === "https:" || process.env.NODE_ENV === "production",
+    secure:
+      req.nextUrl.protocol === "https:" || process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
     maxAge: 10 * 60,
   };
+}
+
+function redirectToLogin(req: NextRequest) {
+  const loginUrl = new URL("/login", req.nextUrl.origin);
+  loginUrl.searchParams.set("returnTo", "/api/buffer/connect");
+  loginUrl.searchParams.set("reason", "auth_required");
+
+  return NextResponse.redirect(loginUrl);
 }
 
 export async function GET(req: NextRequest) {
@@ -32,10 +41,7 @@ export async function GET(req: NextRequest) {
     const userId = getCurrentUserId(req);
 
     if (!userId) {
-      return NextResponse.json(
-        { success: false, error: "You must be logged in to connect Buffer" },
-        { status: 401 }
-      );
+      return redirectToLogin(req);
     }
 
     const env = getBufferOAuthEnv();

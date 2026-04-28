@@ -45,9 +45,10 @@ REPURPOSE_ENGINE_USER_ID=local-dev-user
 ```
 
 `REPURPOSE_ENGINE_USER_ID` is a temporary development placeholder because this
-repo does not currently include a real application auth system. Replace
-`lib/auth.ts` with Firebase Auth, NextAuth, Clerk, or your chosen session system
-before production multi-user use.
+repo does not currently include a real application auth system. It is only used
+when `NODE_ENV === "development"` during `next dev`; production never falls
+back to this value. Replace `lib/auth.ts` with Firebase Auth, NextAuth, Clerk,
+or your chosen session system before production multi-user use.
 
 ## Buffer OAuth Setup
 
@@ -102,6 +103,8 @@ match exactly.
 
 - Add real application authentication and replace `getCurrentUserId` in
   `lib/auth.ts`.
+- Unauthenticated Buffer connect attempts redirect to `/login`. The included
+  login page is a placeholder until real app auth is configured.
 - Add token encryption before production if you have a KMS or encryption helper.
   The storage layer includes TODO comments where encryption should be applied.
 - Rotate any old single-user `BUFFER_API_KEY`; the app no longer uses it for

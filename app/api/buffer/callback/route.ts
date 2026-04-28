@@ -21,15 +21,23 @@ function redirectToApp(req: NextRequest, params: Record<string, string>) {
   return response;
 }
 
+function redirectToLogin(req: NextRequest) {
+  const url = new URL("/login", req.nextUrl.origin);
+  url.searchParams.set("returnTo", "/api/buffer/connect");
+  url.searchParams.set("reason", "auth_required");
+
+  const response = NextResponse.redirect(url);
+  response.cookies.delete(STATE_COOKIE);
+  response.cookies.delete(VERIFIER_COOKIE);
+  return response;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const userId = getCurrentUserId(req);
 
     if (!userId) {
-      return redirectToApp(req, {
-        buffer: "error",
-        message: "You must be logged in to connect Buffer",
-      });
+      return redirectToLogin(req);
     }
 
     const returnedState = req.nextUrl.searchParams.get("state");
