@@ -6,6 +6,10 @@ through Buffer.
 
 ## Local Development
 
+npm install
+
+npm install firebase firebase-admin
+
 ```bash
 npm install
 npm run dev
