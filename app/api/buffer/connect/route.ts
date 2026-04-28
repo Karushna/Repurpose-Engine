@@ -4,7 +4,7 @@ import {
   getBufferOAuthEnv,
   getBufferOAuthScopes,
 } from "@/lib/buffer";
-import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentUserId, redirectToLogin } from "@/lib/auth";
 
 const STATE_COOKIE = "buffer_oauth_state";
 const VERIFIER_COOKIE = "buffer_oauth_code_verifier";
@@ -28,20 +28,12 @@ function cookieOptions(req: NextRequest) {
   };
 }
 
-function redirectToLogin(req: NextRequest) {
-  const loginUrl = new URL("/login", req.nextUrl.origin);
-  loginUrl.searchParams.set("returnTo", "/api/buffer/connect");
-  loginUrl.searchParams.set("reason", "auth_required");
-
-  return NextResponse.redirect(loginUrl);
-}
-
 export async function GET(req: NextRequest) {
   try {
-    const userId = getCurrentUserId(req);
+    const userId = await getCurrentUserId(req);
 
     if (!userId) {
-      return redirectToLogin(req);
+      return redirectToLogin(req, "/api/buffer/connect");
     }
 
     const env = getBufferOAuthEnv();

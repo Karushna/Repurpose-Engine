@@ -4,7 +4,7 @@ import { deleteBufferConnection } from "@/lib/buffer";
 
 export async function POST(req: NextRequest) {
   try {
-    const userId = getCurrentUserId(req);
+    const userId = await getCurrentUserId(req);
 
     if (!userId) {
       return NextResponse.json(

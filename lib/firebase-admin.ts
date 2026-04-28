@@ -1,13 +1,12 @@
 import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
+let firebaseApp: ReturnType<typeof initializeApp> | null = null;
 let firestore: ReturnType<typeof getFirestore> | null = null;
+let auth: ReturnType<typeof getAuth> | null = null;
 
-export function getDb() {
-  if (firestore) {
-    return firestore;
-  }
-
+function getFirebaseAdminApp() {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
@@ -16,7 +15,11 @@ export function getDb() {
     throw new Error("Missing Firebase Admin environment variables");
   }
 
-  const app =
+  if (firebaseApp) {
+    return firebaseApp;
+  }
+
+  firebaseApp =
     getApps().length === 0
       ? initializeApp({
           credential: cert({
@@ -27,6 +30,23 @@ export function getDb() {
         })
       : getApps()[0];
 
-  firestore = getFirestore(app);
+  return firebaseApp;
+}
+
+export function getDb() {
+  if (firestore) {
+    return firestore;
+  }
+
+  firestore = getFirestore(getFirebaseAdminApp());
   return firestore;
+}
+
+export function getAdminAuth() {
+  if (auth) {
+    return auth;
+  }
+
+  auth = getAuth(getFirebaseAdminApp());
+  return auth;
 }

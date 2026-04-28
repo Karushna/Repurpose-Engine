@@ -4,7 +4,7 @@ import { getAllChannelsForUser, getBufferConnection } from "@/lib/buffer";
 
 export async function GET(req: NextRequest) {
   try {
-    const userId = getCurrentUserId(req);
+    const userId = await getCurrentUserId(req);
 
     if (!userId) {
       return NextResponse.json(

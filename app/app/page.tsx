@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import ContentInput from "@/components/ContentInput";
 import GenerateButton from "@/components/GenerateButton";
 import OutputCard from "@/components/OutputCard";
 import OutputEditor from "@/components/OutputEditor";
 import ChannelSelector from "@/components/ChannelSelector";
 import PublishPanel from "@/components/PublishPanel";
+import {
+  getFirebaseAuth,
+  getMissingFirebaseClientEnvVars,
+  hasFirebaseClientConfig,
+} from "@/lib/firebase";
 import type { GenerateResponse, GeneratedPosts } from "@/lib/types";
 
 type BufferChannel = {
@@ -30,6 +36,9 @@ export default function AppPage() {
   const [isBufferConnected, setIsBufferConnected] = useState(false);
   const [isLoadingChannels, setIsLoadingChannels] = useState(true);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [publishMode, setPublishMode] = useState<"queue" | "schedule">("queue");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -38,8 +47,21 @@ export default function AppPage() {
   const [selectedPlatform, setSelectedPlatform] = useState<
     "linkedin" | "xPost" | "instagram"
   >("linkedin");
+  const missingFirebaseEnvVars = useMemo(
+    () => getMissingFirebaseClientEnvVars(),
+    []
+  );
+  const isFirebaseConfigured = useMemo(() => hasFirebaseClientConfig(), []);
 
-  async function loadChannels() {
+  const loadChannels = useCallback(async (user: User | null) => {
+    if (!user) {
+      setIsLoadingChannels(false);
+      setIsBufferConnected(false);
+      setChannels([]);
+      setSelectedChannelId("");
+      return;
+    }
+
     setIsLoadingChannels(true);
     setChannelsError("");
 
@@ -68,23 +90,102 @@ export default function AppPage() {
     } finally {
       setIsLoadingChannels(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const bufferStatus = params.get("buffer");
+    const bufferConnected = params.get("buffer_connected");
     const message = params.get("message");
 
-    if (bufferStatus === "connected") {
+    if (bufferStatus === "connected" || bufferConnected === "true") {
       setPublishMessage("Buffer connected successfully.");
     }
 
     if (bufferStatus === "error") {
       setPublishMessage(message || "Failed to connect Buffer.");
     }
-
-    loadChannels();
   }, []);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) {
+      setIsAuthReady(true);
+      setIsLoadingChannels(false);
+      setChannelsError(
+        `Firebase client auth is missing: ${missingFirebaseEnvVars.join(", ")}`
+      );
+      return;
+    }
+
+    let isMounted = true;
+
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (user) => {
+      if (!isMounted) {
+        return;
+      }
+
+      setCurrentUser(user);
+      setIsAuthReady(true);
+
+      if (!user) {
+        setIsLoadingChannels(false);
+        setIsBufferConnected(false);
+        setChannels([]);
+        setSelectedChannelId("");
+        return;
+      }
+
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch("/api/auth/session-login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ idToken }),
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+          setChannelsError(data.error || "Failed to create Firebase session");
+          return;
+        }
+
+        await loadChannels(user);
+      } catch (err) {
+        console.error(err);
+        setChannelsError("Failed to initialize Firebase session");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [isFirebaseConfigured, loadChannels, missingFirebaseEnvVars]);
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    setPublishMessage("");
+    setChannelsError("");
+
+    try {
+      await signOut(getFirebaseAuth());
+      await fetch("/api/auth/session-logout", {
+        method: "POST",
+      });
+      setCurrentUser(null);
+      setIsBufferConnected(false);
+      setChannels([]);
+      setSelectedChannelId("");
+      setPublishMessage("Signed out.");
+    } catch (err) {
+      console.error(err);
+      setPublishMessage("Failed to sign out.");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }
 
   async function handleDisconnectBuffer() {
     setIsDisconnecting(true);
@@ -369,12 +470,21 @@ export default function AppPage() {
                     <div>
                       <h3 className="font-semibold">Buffer connection</h3>
                       <p className="text-sm text-gray-600">
-                        {isLoadingChannels
+                        {!isAuthReady
+                          ? "Checking sign-in..."
+                          : !currentUser
+                            ? "Sign in to connect your Buffer account."
+                            : isLoadingChannels
                           ? "Checking connection..."
                           : isBufferConnected
                             ? "Connected. Your Buffer channels are available below."
                             : "Not connected. Connect Buffer to load your channels."}
                       </p>
+                      {currentUser?.email && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Signed in as {currentUser.email}
+                        </p>
+                      )}
                     </div>
 
                     {isBufferConnected ? (
@@ -388,13 +498,30 @@ export default function AppPage() {
                       </button>
                     ) : (
                       <a
-                        href="/api/buffer/connect"
+                        href={
+                          currentUser
+                            ? "/api/buffer/connect"
+                            : "/login?returnTo=/api/buffer/connect&reason=auth_required"
+                        }
                         className="rounded-lg bg-black px-4 py-2 text-center text-sm font-medium text-white"
                       >
-                        Connect Buffer
+                        {currentUser ? "Connect Buffer" : "Sign in to connect"}
                       </a>
                     )}
                   </div>
+
+                  {currentUser && (
+                    <div className="mt-4 border-t pt-4">
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        disabled={isLoggingOut}
+                        className="rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50"
+                      >
+                        {isLoggingOut ? "Signing out..." : "Sign out"}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {channelsError && (

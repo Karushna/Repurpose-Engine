@@ -3,7 +3,7 @@ import {
   exchangeBufferAuthorizationCode,
   saveBufferConnection,
 } from "@/lib/buffer";
-import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentUserId, redirectToLogin } from "@/lib/auth";
 
 const STATE_COOKIE = "buffer_oauth_state";
 const VERIFIER_COOKIE = "buffer_oauth_code_verifier";
@@ -21,23 +21,15 @@ function redirectToApp(req: NextRequest, params: Record<string, string>) {
   return response;
 }
 
-function redirectToLogin(req: NextRequest) {
-  const url = new URL("/login", req.nextUrl.origin);
-  url.searchParams.set("returnTo", "/api/buffer/connect");
-  url.searchParams.set("reason", "auth_required");
-
-  const response = NextResponse.redirect(url);
-  response.cookies.delete(STATE_COOKIE);
-  response.cookies.delete(VERIFIER_COOKIE);
-  return response;
-}
-
 export async function GET(req: NextRequest) {
   try {
-    const userId = getCurrentUserId(req);
+    const userId = await getCurrentUserId(req);
 
     if (!userId) {
-      return redirectToLogin(req);
+      const response = redirectToLogin(req, "/api/buffer/connect");
+      response.cookies.delete(STATE_COOKIE);
+      response.cookies.delete(VERIFIER_COOKIE);
+      return response;
     }
 
     const returnedState = req.nextUrl.searchParams.get("state");
@@ -71,7 +63,7 @@ export async function GET(req: NextRequest) {
     const tokens = await exchangeBufferAuthorizationCode(code, codeVerifier);
     await saveBufferConnection(userId, tokens);
 
-    return redirectToApp(req, { buffer: "connected" });
+    return redirectToApp(req, { buffer_connected: "true" });
   } catch (error) {
     console.error("Buffer callback route error:", error);
 

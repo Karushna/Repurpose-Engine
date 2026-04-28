@@ -2,13 +2,9 @@
 
 Repurpose Engine is a Next.js App Router app that turns source content into
 LinkedIn, X, and Instagram drafts, then queues or schedules the selected draft
-through Buffer.
+through a user-connected Buffer account.
 
 ## Local Development
-
-npm install
-
-npm install firebase firebase-admin
 
 ```bash
 npm install
@@ -17,98 +13,128 @@ npm run dev
 
 Open http://localhost:3000.
 
-Copy `.env.example` to `.env.local` and fill in your OpenAI, Firebase Admin,
-and Buffer OAuth values.
+Copy `.env.example` to `.env.local` and fill in your OpenAI, Firebase, and
+Buffer OAuth values.
 
-## Required Environment Variables
+## Environment Variables
+
+Firebase client auth:
 
 ```bash
-OPENAI_API_KEY=
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+```
 
+Firebase Admin:
+
+```bash
 FIREBASE_PROJECT_ID=
 FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=
+```
 
+Buffer:
+
+```bash
 BUFFER_CLIENT_ID=
 BUFFER_CLIENT_SECRET=
-BUFFER_REDIRECT_URI=
+BUFFER_REDIRECT_URI=http://localhost:3000/api/buffer/callback
 BUFFER_AUTH_URL=https://auth.buffer.com/auth
 BUFFER_TOKEN_URL=https://auth.buffer.com/token
 BUFFER_API_BASE=https://api.buffer.com
 ```
 
-For local development, set:
+The Firebase private key supports escaped newlines:
+`process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n")`.
 
-```bash
-BUFFER_REDIRECT_URI=http://localhost:3000/api/buffer/callback
-REPURPOSE_ENGINE_USER_ID=local-dev-user
-```
+## Firebase Auth
 
-`REPURPOSE_ENGINE_USER_ID` is a temporary development placeholder because this
-repo does not currently include a real application auth system. It is only used
-when `NODE_ENV === "development"` during `next dev`; production never falls
-back to this value. Replace `lib/auth.ts` with Firebase Auth, NextAuth, Clerk,
-or your chosen session system before production multi-user use.
+The app uses Firebase email/password auth on `/login`.
+
+After sign-in or sign-up, the frontend gets a Firebase ID token and posts it to
+`/api/auth/session-login`. The server verifies the ID token with Firebase Admin
+and creates an httpOnly `__session` cookie. Server routes verify that cookie and
+use the Firebase UID as the application user ID.
+
+Logout calls `/api/auth/session-logout`, which clears the session cookie.
 
 ## Buffer OAuth Setup
 
 1. In Buffer, create or open your developer/API app.
-2. Add the redirect URI that matches your deployment:
-   `http://localhost:3000/api/buffer/callback` for local development, and
-   `https://your-domain.com/api/buffer/callback` for production.
-3. Add the same value to `BUFFER_REDIRECT_URI`.
-4. Add the Buffer client ID and client secret to `BUFFER_CLIENT_ID` and
+2. Add the redirect URI that matches your environment:
+   `http://localhost:3000/api/buffer/callback` locally.
+3. For production, add:
+   `https://repurpose-engine-jet.vercel.app/api/buffer/callback`.
+4. Add the same URI to `BUFFER_REDIRECT_URI`.
+5. Add the Buffer client ID and secret to `BUFFER_CLIENT_ID` and
    `BUFFER_CLIENT_SECRET`.
-5. Keep `BUFFER_AUTH_URL`, `BUFFER_TOKEN_URL`, and `BUFFER_API_BASE` pointed at
-   the Buffer OAuth and GraphQL endpoints shown above unless Buffer changes
-   those in your developer dashboard.
 
-The app requests these scopes:
+The app requests:
 
 ```text
 posts:write posts:read account:read offline_access
 ```
 
-`offline_access` is used to receive a refresh token so scheduled publishing can
-continue after the short-lived access token expires.
+## How Buffer Connections Work
 
-## How Clients Connect Buffer
-
-1. The user opens `/app`.
+1. The user signs in with Firebase.
 2. They click **Connect Buffer**.
-3. The app redirects them to Buffer with OAuth 2.0 Authorization Code + PKCE.
+3. `/api/buffer/connect` verifies the Firebase session cookie and redirects to
+   Buffer with OAuth 2.0 Authorization Code + PKCE.
 4. Buffer redirects back to `/api/buffer/callback`.
-5. The server validates state, exchanges the code for tokens, and stores the
-   connection in Firestore under `bufferConnections/{userId}_buffer`.
-6. The frontend calls `/api/buffer/channels` to show that user's Buffer
-   channels.
-7. Publishing calls `/api/publish`, which validates that the selected channel
-   belongs to the connected Buffer user before creating the Buffer post.
+5. The server verifies the Firebase session cookie, exchanges the code for
+   tokens, and stores them in Firestore at `bufferConnections/{firebaseUid}`.
+6. `/api/buffer/channels` refreshes the token if needed and returns only
+   channel/profile data to the frontend.
+7. `/api/publish` verifies the Firebase session, validates that the selected
+   Buffer channel belongs to that user, then publishes with that user's token.
 
-Tokens are never sent to the browser or stored in localStorage.
+Access tokens and refresh tokens are never exposed to the browser or stored in
+localStorage.
+
+## Firestore
+
+Buffer connections are stored in the `bufferConnections` collection with the
+Firebase UID as the document ID:
+
+```text
+bufferConnections/{uid}
+```
+
+Fields:
+
+```text
+id
+userId
+provider
+accessToken
+refreshToken
+expiresAt
+scope
+createdAt
+updatedAt
+```
 
 ## Vercel Setup
 
-Add all required environment variables in the Vercel project settings for each
-environment. Use the deployed callback URL for production:
+Add all environment variables in Vercel Project Settings.
+
+For `FIREBASE_PRIVATE_KEY`, paste the private key with escaped newlines, for
+example:
 
 ```text
-https://your-domain.com/api/buffer/callback
+-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n
 ```
 
-Add that exact URL to the Buffer Developer Dashboard. The redirect URI must
-match exactly.
+Set production Buffer redirect URI to:
 
-## Production Notes
+```text
+https://repurpose-engine-jet.vercel.app/api/buffer/callback
+```
 
-- Add real application authentication and replace `getCurrentUserId` in
-  `lib/auth.ts`.
-- Unauthenticated Buffer connect attempts redirect to `/login`. The included
-  login page is a placeholder until real app auth is configured.
-- Add token encryption before production if you have a KMS or encryption helper.
-  The storage layer includes TODO comments where encryption should be applied.
-- Rotate any old single-user `BUFFER_API_KEY`; the app no longer uses it for
-  Buffer publishing.
+Add that exact URL in the Buffer Developer Dashboard.
 
 ## Scripts
 

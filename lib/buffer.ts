@@ -95,7 +95,7 @@ export function getBufferOAuthEnv(): BufferOAuthEnv {
 }
 
 function connectionDoc(userId: string) {
-  return getDb().collection("bufferConnections").doc(`${userId}_${BUFFER_PROVIDER}`);
+  return getDb().collection("bufferConnections").doc(userId);
 }
 
 function toDate(value: unknown) {

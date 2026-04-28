@@ -36,7 +36,7 @@ const requestSchema = z
 
 export async function POST(req: NextRequest) {
   try {
-    const userId = getCurrentUserId(req);
+    const userId = await getCurrentUserId(req);
 
     if (!userId) {
       return NextResponse.json(
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     console.error("Publish route error:", error);
 
     try {
-      const userId = getCurrentUserId(req);
+      const userId = await getCurrentUserId(req);
       await getDb().collection("publishLogs").add({
         userId: userId ?? null,
         status: "failed",
